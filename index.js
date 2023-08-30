@@ -54,6 +54,8 @@ async function run() {
 			.db("vrd-lab")
 			.collection("publications");
 
+		const articalesCollection = client.db("vrd-lab").collection("articale");
+
 		/*----------------------------
              projects Collection
         ------------------------------*/
@@ -347,6 +349,111 @@ async function run() {
 				options
 			);
 			res.send({ result, work });
+		});
+
+		/*----------------------------
+            Articales Collection
+        ------------------------------*/
+
+		app.post("/articale/create", upload.single("artiImg"), async (req, res) => {
+			const title = req.body.title;
+			const date = req.body.date;
+			const proCategory = req.body.proCategory;
+			const link = req.body.link;
+			const authors = req.body.authors;
+			const desc = req.body.desc;
+			const articaleType = req.body.articaleType;
+			const artiImg = req.file.path.replace(/\\/g, "/");
+			createdAt = new Date();
+
+			const newProject = {
+				title,
+				date,
+				proCategory,
+				link,
+				authors,
+				desc,
+				artiImg,
+				articaleType,
+				createdAt,
+			};
+
+			const newData = await articalesCollection.insertOne(newProject);
+			res.send({ Message: "Articale Added Successfully", newData });
+		});
+
+		app.get("/articale/all", async (req, res) => {
+			const data = await articalesCollection.find({}).toArray();
+			res.send({ Message: "Success!", data: data });
+		});
+
+		app.get("/articale/:id", async (req, res) => {
+			const id = req.params.id;
+			const data = await articalesCollection.findOne({
+				_id: new ObjectId(id),
+			});
+			res.send(data);
+		});
+
+		app.delete("/articale/:id", async (req, res) => {
+			const id = req.params.id;
+
+			const projectData = await articalesCollection.findOne({
+				_id: new ObjectId(id),
+			});
+			if (!projectData) {
+				return res.status(404).send({ Message: "articale not found" });
+			}
+
+			// Delete the project data from the database
+			const deleteData = await articalesCollection.deleteOne({
+				_id: new ObjectId(id),
+			});
+			// Now, delete the associated image file from the "uploads" directory
+			const imagePath = projectData.artiImg;
+			try {
+				fs.unlinkSync(imagePath); // This will delete the file synchronously
+				console.log("Image deleted successfully");
+			} catch (err) {
+				console.error("Error deleting image:", err);
+			}
+
+			res.send({ Message: "articale deleted", deleteData });
+		});
+
+		app.put("/articale/:id", upload.single("artiImg"), async (req, res) => {
+			const id = req.params.id;
+			const project = req.body;
+
+			// Check if a new image is provided in the request
+			if (req.file) {
+				// Process the new image and store it
+				const projImgPath = req.file.path;
+
+				// Delete the old image if it exists
+				if (project.artiImg) {
+					try {
+						fs.unlinkSync(project.artiImg);
+						console.log("Old image deleted:", project.artiImg);
+					} catch (error) {
+						console.log("Error deleting old image:", error);
+					}
+				}
+
+				project.artiImg = projImgPath;
+			}
+
+			const filter = { _id: new ObjectId(id) };
+			const options = { upsert: true };
+			const updateDoc = {
+				$set: project,
+			};
+			const result = await articalesCollection.updateOne(
+				filter,
+				updateDoc,
+				options
+			);
+			res.send({ result, project });
 		});
 	} finally {
 	}
